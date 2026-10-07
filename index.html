@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>The Thinking Behind — YouTube Analytics Dashboard</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap">
+  
+  <style>
+    :root {
+      --bg: #EEF1ED;
+      --surface: #F8FAF7;
+      --ink: #14201A;
+      --muted: #55645B;
+      --line: #D5DCD3;
+      --accent: #1E6B50;
+      --accent-soft: #D3E6DB;
+      --good: #1E7A45;
+      --bad: #B3361F;
+      --prev: #8A9890;
+      --font-display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+      --font-body: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+      --font-data: "Fragment Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0E1512;
+        --surface: #151F1A;
+        --ink: #E6EDE8;
+        --muted: #92A399;
+        --line: #26342C;
+        --accent: #5FC59A;
+        --accent-soft: #1B3A2E;
+        --good: #62C48A;
+        --bad: #F0806A;
+        --prev: #6C7C73;
+        color-scheme: dark;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.45;
+      padding-inline: 16px;
+      padding-block: 20px 40px;
+    }
+
+    .wrap { max-width: 1080px; margin-inline: auto; display: flex; flex-direction: column; gap: 16px; }
+    button { font: inherit; color: inherit; }
+    a { color: var(--accent); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+    .mast { position: relative; display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-end; justify-content: space-between; padding-block: 8px 4px; overflow: hidden; }
+    .contours { position: absolute; right: -40px; top: -60px; width: 340px; height: 220px; stroke: var(--line); fill: none; stroke-width: 1.2; pointer-events: none; }
+    .mast > * { position: relative; }
+    .eyebrow { font-family: var(--font-data); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+    h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 6vw, 46px); line-height: 1.02; letter-spacing: -.02em; margin: 0; }
+    .sub { margin: 6px 0 0; color: var(--muted); }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 3px; gap: 2px; }
+    .seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: var(--font-data); font-size: 13px; color: var(--muted); }
+    .seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--accent); color: var(--surface); }
+    
+    .btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+    .btn:hover { border-color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+    .stamp { font-family: var(--font-data); font-size: 12px; color: var(--muted); }
+
+    .notice { border: 1px solid var(--line); border-left: 4px solid var(--accent); background: var(--surface); padding: 12px 14px; border-radius: 8px; font-size: 14px; }
+    .notice strong { display: block; margin-bottom: 2px; }
+    .notice.warn { border-left-color: var(--bad); }
+
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    .kpi { padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; min-width: 0; border-left: 1px solid var(--line); border-top: 1px solid var(--line); margin: -1px 0 0 -1px; }
+    .kpi .lbl { font-family: var(--font-data); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .kpi .val { font-size: clamp(30px, 5vw, 40px); font-weight: 600; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .kpi .meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--muted); min-height: 22px; }
+    .delta { font-family: var(--font-data); font-size: 12px; padding: 2px 7px; border-radius: 99px; border: 1px solid currentColor; white-space: nowrap; }
+    .delta.up { color: var(--good); }
+    .delta.down { color: var(--bad); }
+    .delta.flat { color: var(--muted); }
+
+    .grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
+    @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+    .card { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 16px 18px; min-width: 0; }
+    .card-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    h2 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+    .legend { display: flex; gap: 14px; font-size: 12px; font-family: var(--font-data); color: var(--muted); margin-bottom: 4px; }
+    .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--accent); vertical-align: middle; margin-right: 6px; }
+    .legend i.p { border-top: 2px dashed var(--prev); }
+
+    .plot { position: relative; min-width: 0; }
+    .plot svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+    .plot .g { stroke: var(--line); stroke-width: 1; }
+    .plot .ax { fill: var(--muted); font-family: var(--font-data); font-size: 11px; }
+    .plot .ln { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+    .plot .ar { fill: var(--accent-soft); opacity: .75; }
+    .plot .pv { fill: none; stroke: var(--prev); stroke-width: 1.5; stroke-dasharray: 4 4; }
+    .plot .dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+    .plot .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+    .tip { position: absolute; top: 4px; transform: translateX(-50%); background: var(--ink); color: var(--surface); font-size: 12px; padding: 6px 9px; border-radius: 6px; pointer-events: none; white-space: nowrap; font-family: var(--font-data); z-index: 2; }
+    .tip b { font-weight: 400; display: block; opacity: .7; }
+
+    .src { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .src li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; }
+    .src .nm { overflow-wrap: anywhere; }
+    .src .nv { font-family: var(--font-data); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .src .bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--accent-soft); overflow: hidden; }
+    .src .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+    .src .mn { grid-column: 1 / -1; font-size: 12px; color: var(--muted); margin-top: -2px; }
+
+    .tablewrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 640px; }
+    th { text-align: left; font-family: var(--font-data); font-weight: 400; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    tr:last-child td { border-bottom: 0; }
+    th.n, td.n { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-data); white-space: nowrap; }
+    td.t { min-width: 240px; }
+    td.d { white-space: nowrap; color: var(--muted); font-family: var(--font-data); font-size: 13px; }
+    .foot { color: var(--muted); font-size: 13px; }
+  </style>
+
+  <!-- Google OAuth Client Library -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- PPTX Generation Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="mast">
+    <svg class="contours" viewBox="0 0 340 220" aria-hidden="true">
+      <ellipse cx="200" cy="110" rx="150" ry="84" transform="rotate(-14 200 110)"/>
+      <ellipse cx="205" cy="108" rx="122" ry="66" transform="rotate(-12 205 108)"/>
+      <ellipse cx="212" cy="106" rx="94" ry="49" transform="rotate(-10 212 106)"/>
+      <ellipse cx="218" cy="104" rx="64" ry="32" transform="rotate(-8 218 104)"/>
+      <ellipse cx="222" cy="103" rx="34" ry="16" transform="rotate(-6 222 103)"/>
+    </svg>
+    <div>
+      <p class="eyebrow">YouTube Channel Analytics</p>
+      <h1>The Thinking Behind</h1>
+      <p class="sub">Jatin Agarwal</p>
+    </div>
+    <div class="controls">
+      <button type="button" class="btn primary" id="authBtn">Sign in with Google</button>
+      <div class="seg" role="group" aria-label="Date range" id="rangeSeg">
+        <button type="button" data-range="7" aria-pressed="false">7 days</button>
+        <button type="button" data-range="30" aria-pressed="true">30 days</button>
+        <button type="button" data-range="90" aria-pressed="false">90 days</button>
+      </div>
+      <button type="button" class="btn" id="refresh">Refresh</button>
+      <span class="stamp" id="stamp">Showing Demo Data</span>
+    </div>
+  </header>
+
+  <div id="authNotice" class="notice">
+    <strong>Connect Your YouTube Channel</strong>
+    <span>Insert your Google OAuth Client ID into line 180 of this file, then click "Sign in with Google" to load live YouTube Analytics. Currently rendering demo data.</span>
+  </div>
+
+  <section class="kpis" aria-label="Key numbers" id="kpis">
+    <div class="kpi" data-k="views"><span class="lbl">Views</span><span class="val">—</span><span class="meta"></span></div>
+    <div class="kpi" data-k="hours"><span class="lbl">Watch time</span><span class="val">—</span><span class="meta"></span></div>
+    <div class="kpi" data-k="subs"><span class="lbl">Net subscribers</span><span class="val">—</span><span class="meta"></span></div>
+    <div class="kpi" data-k="eng"><span class="lbl">Likes + shares</span><span class="val">—</span><span class="meta"></span></div>
+  </section>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="trendH">
+      <div class="card-head">
+        <h2 id="trendH">Daily trend</h2>
+        <div class="seg" role="tablist" aria-label="Metric" id="metricSeg">
+          <button type="button" role="tab" data-m="views" aria-selected="true">Views</button>
+          <button type="button" role="tab" data-m="minutes" aria-selected="false">Minutes</button>
+          <button type="button" role="tab" data-m="subs" aria-selected="false">Subscribers</button>
+        </div>
+      </div>
+      <div class="legend"><span><i></i>This period</span><span><i class="p"></i>Previous period</span></div>
+      <div class="plot" id="plot"><p>Loading daily data…</p></div>
+    </section>
+
+    <section class="card" aria-labelledby="srcH">
+      <div class="card-head"><h2 id="srcH">Where viewers come from</h2></div>
+      <div id="sources"><p>Loading traffic sources…</p></div>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="vidH">
+    <div class="card-head">
+      <h2 id="vidH">Videos in this period</h2>
+      <span class="foot" id="vidFoot"></span>
+    </div>
+    <div id="videos"><p>Loading videos…</p></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Export Report</h2></div>
+    <button type="button" class="btn primary" id="downloadPptx">Download PowerPoint Deck (.pptx)</button>
+  </section>
+</div>
+
+<script>
+(function() {
+  // ==========================================
+  // SETUP YOUR GOOGLE OAUTH CLIENT ID HERE
+  // ==========================================
+  var CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+  var SCOPES = "https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/youtube.readonly";
+  
+  var tokenClient = null;
+  var accessToken = null;
+  var range = 30, metric = "views";
+  var state = { cur: [], prev: [], sources: [], videos: [] };
+  
+  var $ = function(id) { return document.getElementById(id); };
+  var nf = new Intl.NumberFormat("en-IN");
+  function fmt(n) { return nf.format(Math.round(n || 0)); }
+  function fmt1(n) { return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(n || 0); }
+  function ymd(d) { return d.toISOString().slice(0, 10); }
+  function addDays(d, n) { var x = new Date(d.getTime()); x.setUTCDate(x.getUTCDate() + n); return x; }
+  function dlabel(s) { return new Date(s + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }); }
+
+  // --- OAuth Initialization ---
+  function initAuth() {
+    if (typeof google === "undefined" || !google.accounts) return;
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: function(res) {
+        if (res.error) {
+          alert("Auth failed: " + res.error);
+          return;
+        }
+        accessToken = res.access_token;
+        $("authBtn").textContent = "Connected to YouTube";
+        $("authNotice").style.display = "none";
+        $("stamp").textContent = "Live from YouTube Analytics API";
+        loadLiveData();
+      }
+    });
+  }
+
+  $("authBtn").addEventListener("click", function() {
+    if (CLIENT_ID.indexOf("YOUR_GOOGLE_CLIENT_ID") !== -1) {
+      alert("Please replace 'YOUR_GOOGLE_CLIENT_ID' in index.html with your valid OAuth Client ID from the Google Cloud Console.");
+      return;
+    }
+    if (tokenClient) tokenClient.requestAccessToken();
+  });
+
+  // --- YouTube Analytics API Calls ---
+  async function apiFetch(endpoint, params) {
+    var url = new URL("https://youtubeanalytics.googleapis.com/v2/" + endpoint);
+    Object.keys(params).forEach(function(k) { url.searchParams.append(k, params[k]); });
+    var res = await fetch(url, { headers: { Authorization: "Bearer " + accessToken } });
+    if (!res.ok) throw new Error("YouTube API request failed");
+    return await res.json();
+  }
+
+  async function loadLiveData() {
+    try {
+      var today = new Date();
+      var end = ymd(today);
+      var curStart = ymd(addDays(today, -(range - 1)));
+      var prevStart = ymd(addDays(today, -(2 * range - 1)));
+      var prevEnd = ymd(addDays(today, -range));
+
+      // 1. Fetch Daily Trend Data
+      var trendRes = await apiFetch("reports", {
+        ids: "channel==MINE",
+        startDate: prevStart,
+        endDate: end,
+        metrics: "views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,shares",
+        dimensions: "day",
+        sort: "day"
+      });
+
+      var rows = trendRes.rows || [];
+      var byDate = {};
+      rows.forEach(function(r) {
+        byDate[r[0]] = { date: r[0], views: r[1], minutes: r[2], gained: r[3], lost: r[4], likes: r[5], shares: r[6] };
+      });
+
+      var curDates = [], prevDates = [];
+      for (var i = 0; i < range; i++) {
+        curDates.push(ymd(addDays(today, -(range - 1) + i)));
+        prevDates.push(ymd(addDays(today, -(2 * range - 1) + i)));
+      }
+
+      state.prev = prevDates.map(function(d) { return byDate[d] || { date: d, views: 0, minutes: 0, gained: 0, lost: 0, likes: 0, shares: 0 }; });
+      state.cur = curDates.map(function(d) { return byDate[d] || { date: d, views: 0, minutes: 0, gained: 0, lost: 0, likes: 0, shares: 0 }; });
+
+      // 2. Fetch Traffic Sources
+      var srcRes = await apiFetch("reports", {
+        ids: "channel==MINE",
+        startDate: curStart,
+        endDate: end,
+        metrics: "views,estimatedMinutesWatched",
+        dimensions: "insightTrafficSourceType",
+        sort: "-views"
+      });
+      state.sources = (srcRes.rows || []).map(function(r) { return { name: r[0], views: r[1], minutes: r[2] }; });
+
+      renderAll();
+    } catch(err) {
+      console.error(err);
+      alert("Failed to load live data: " + err.message);
+    }
+  }
+
+  // --- Mock / Demo Data Engine ---
+  function generateDemoData() {
+    var today = new Date();
+    state.cur = []; state.prev = [];
+    for (var i = 0; i < range; i++) {
+      var d = ymd(addDays(today, -(range - 1) + i));
+      var pd = ymd(addDays(today, -(2 * range - 1) + i));
+      state.cur.push({ date: d, views: Math.floor(Math.random() * 400 + 100), minutes: Math.floor(Math.random() * 1200 + 300), gained: Math.floor(Math.random() * 8), lost: Math.floor(Math.random() * 2), likes: Math.floor(Math.random() * 20), shares: Math.floor(Math.random() * 5) });
+      state.prev.push({ date: pd, views: Math.floor(Math.random() * 350 + 80), minutes: Math.floor(Math.random() * 1000 + 200), gained: Math.floor(Math.random() * 5), lost: Math.floor(Math.random() * 2), likes: Math.floor(Math.random() * 15), shares: Math.floor(Math.random() * 3) });
+    }
+    state.sources = [
+      { name: "YouTube Search", views: 4200, minutes: 12600 },
+      { name: "Suggested Videos", views: 2800, minutes: 8400 },
+      { name: "Channel Pages", views: 1500, minutes: 3000 },
+      { name: "External Sites", views: 900, minutes: 1800 }
+    ];
+    state.videos = [
+      { title: "Building a Modern Analytics Dashboard", pub: "2026-02-15", views: 5400, minutes: 16200, likes: 320, avgPct: 48.5 },
+      { title: "Understanding Private API Authentication", pub: "2026-03-01", views: 3200, minutes: 9600, likes: 180, avgPct: 52.1 }
+    ];
+    renderAll();
+  }
+
+  // --- Renderers ---
+  function sum(arr, fn) { return arr.reduce(function(a, r) { return a + fn(r); }, 0); }
+
+  function renderKpis() {
+    var c = state.cur, p = state.prev;
+    var v = sum(c, function(r) { return r.views; }), pv = sum(p, function(r) { return r.views; });
+    var m = sum(c, function(r) { return r.minutes; }), pm = sum(p, function(r) { return r.minutes; });
+    var g = sum(c, function(r) { return r.gained; }), l = sum(c, function(r) { return r.lost; });
+    var pg = sum(p, function(r) { return r.gained; }), pl = sum(p, function(r) { return r.lost; });
+    var e = sum(c, function(r) { return r.likes + r.shares; }), pe = sum(p, function(r) { return r.likes + r.shares; });
+
+    document.querySelector('.kpi[data-k="views"] .val').textContent = fmt(v);
+    document.querySelector('.kpi[data-k="hours"] .val').textContent = fmt1(m / 60) + " h";
+    document.querySelector('.kpi[data-k="subs"] .val').textContent = (g - l >= 0 ? "+" : "") + fmt(g - l);
+    document.querySelector('.kpi[data-k="eng"] .val').textContent = fmt(e);
+  }
+
+  function renderChart() {
+    var host = $("plot");
+    if (!state.cur.length) return;
+    var getVal = function(r) { return metric === "views" ? r.views : metric === "minutes" ? r.minutes : (r.gained - r.lost); };
+    var cur = state.cur.map(getVal), prv = state.prev.map(getVal), n = cur.length;
+    var W = 720, H = 250, L = 44, R = 14, T = 14, B = 28;
+    var hi = Math.max(1, Math.max.apply(null, cur), Math.max.apply(null, prv));
+    var lo = Math.min(0, Math.min.apply(null, cur), Math.min.apply(null, prv));
+    var X = function(i) { return L + (W - L - R) * i / (n - 1); };
+    var Y = function(v) { return T + (H - T - B) * (1 - (v - lo) / (hi - lo || 1)); };
+    var path = function(arr) { return arr.map(function(v, i) { return (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1); }).join(" "); };
+
+    host.innerHTML =
+      '<svg viewBox="0 0 ' + W + ' ' + H + '">' +
+      '<path class="ar" d="' + path(cur) + ' L' + X(n-1) + ' ' + Y(0) + ' L' + X(0) + ' ' + Y(0) + ' Z"/>' +
+      '<path class="pv" d="' + path(prv) + '"/>' +
+      '<path class="ln" d="' + path(cur) + '"/>' +
+      '</svg>';
+  }
+
+  function renderSources() {
+    var host = $("sources");
+    host.innerHTML = "";
+    var ul = document.createElement("ul");
+    ul.className = "src";
+    var maxV = state.sources[0] ? state.sources[0].views : 1;
+    state.sources.forEach(function(s) {
+      var li = document.createElement("li");
+      li.innerHTML = '<span class="nm">' + s.name + '</span><span class="nv">' + fmt(s.views) + '</span>' +
+        '<span class="bar"><i style="width:' + (s.views / maxV * 100) + '%"></i></span>' +
+        '<span class="mn">' + fmt(s.minutes) + ' mins</span>';
+      ul.appendChild(li);
+    });
+    host.appendChild(ul);
+  }
+
+  function renderVideos() {
+    var host = $("videos");
+    var html = '<div class="tablewrap"><table><thead><tr><th>Video</th><th class="n">Views</th><th class="n">Minutes</th><th class="n">Likes</th></tr></thead><tbody>';
+    state.videos.forEach(function(v) {
+      html += '<tr><td class="t">' + v.title + '</td><td class="n">' + fmt(v.views) + '</td><td class="n">' + fmt(v.minutes) + '</td><td class="n">' + fmt(v.likes) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    host.innerHTML = html;
+  }
+
+  function renderAll() {
+    renderKpis();
+    renderChart();
+    renderSources();
+    renderVideos();
+  }
+
+  // --- Controls & Handlers ---
+  $("rangeSeg").addEventListener("click", function(e) {
+    var b = e.target.closest("button[data-range]"); if (!b) return;
+    range = Number(b.dataset.range);
+    document.querySelectorAll("#rangeSeg button").forEach(function(x) { x.setAttribute("aria-pressed", String(x === b)); });
+    if (accessToken) loadLiveData(); else generateDemoData();
+  });
+
+  $("metricSeg").addEventListener("click", function(e) {
+    var b = e.target.closest("button[data-m]"); if (!b) return;
+    metric = b.dataset.m;
+    document.querySelectorAll("#metricSeg button").forEach(function(x) { x.setAttribute("aria-selected", String(x === b)); });
+    renderChart();
+  });
+
+  $("refresh").addEventListener("click", function() {
+    if (accessToken) loadLiveData(); else generateDemoData();
+  });
+
+  $("downloadPptx").addEventListener("click", function() {
+    var pptx = new PptxGenJS();
+    var slide = pptx.addSlide();
+    slide.addText("The Thinking Behind - YouTube Analytics Report", { x: 1, y: 1, fontSize: 24, bold: true });
+    slide.addText("Generated on: " + new Date().toLocaleDateString(), { x: 1, y: 2, fontSize: 14 });
+    pptx.writeFile({ fileName: "YouTube-Analytics-Report.pptx" });
+  });
+
+  window.onload = function() {
+    initAuth();
+    generateDemoData();
+  };
+})();
+</script>
+</body>
+</html>
