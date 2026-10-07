@@ -164,7 +164,7 @@
 
   <div id="authNotice" class="notice">
     <strong>Connect Your YouTube Channel</strong>
-    <span>Insert your Google OAuth Client ID into line 180 of this file, then click "Sign in with Google" to load live YouTube Analytics. Currently rendering demo data.</span>
+    <span>Click the "Sign in with Google" button in the top right to authenticate with your YouTube account and stream live analytics.</span>
   </div>
 
   <section class="kpis" aria-label="Key numbers" id="kpis">
@@ -210,10 +210,8 @@
 
 <script>
 (function() {
-  // ==========================================
-  // SETUP YOUR GOOGLE OAUTH CLIENT ID HERE
-  // ==========================================
-  var CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+  // Configured Client ID
+  var CLIENT_ID = "228693286032-t4ebt6qeliklpd9aqhhan2pc983kc10s.apps.googleusercontent.com";
   var SCOPES = "https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/youtube.readonly";
   
   var tokenClient = null;
@@ -227,7 +225,6 @@
   function fmt1(n) { return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(n || 0); }
   function ymd(d) { return d.toISOString().slice(0, 10); }
   function addDays(d, n) { var x = new Date(d.getTime()); x.setUTCDate(x.getUTCDate() + n); return x; }
-  function dlabel(s) { return new Date(s + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }); }
 
   // --- OAuth Initialization ---
   function initAuth() {
@@ -250,10 +247,6 @@
   }
 
   $("authBtn").addEventListener("click", function() {
-    if (CLIENT_ID.indexOf("YOUR_GOOGLE_CLIENT_ID") !== -1) {
-      alert("Please replace 'YOUR_GOOGLE_CLIENT_ID' in index.html with your valid OAuth Client ID from the Google Cloud Console.");
-      return;
-    }
     if (tokenClient) tokenClient.requestAccessToken();
   });
 
@@ -272,7 +265,6 @@
       var end = ymd(today);
       var curStart = ymd(addDays(today, -(range - 1)));
       var prevStart = ymd(addDays(today, -(2 * range - 1)));
-      var prevEnd = ymd(addDays(today, -range));
 
       // 1. Fetch Daily Trend Data
       var trendRes = await apiFetch("reports", {
@@ -345,11 +337,10 @@
 
   function renderKpis() {
     var c = state.cur, p = state.prev;
-    var v = sum(c, function(r) { return r.views; }), pv = sum(p, function(r) { return r.views; });
-    var m = sum(c, function(r) { return r.minutes; }), pm = sum(p, function(r) { return r.minutes; });
+    var v = sum(c, function(r) { return r.views; });
+    var m = sum(c, function(r) { return r.minutes; });
     var g = sum(c, function(r) { return r.gained; }), l = sum(c, function(r) { return r.lost; });
-    var pg = sum(p, function(r) { return r.gained; }), pl = sum(p, function(r) { return r.lost; });
-    var e = sum(c, function(r) { return r.likes + r.shares; }), pe = sum(p, function(r) { return r.likes + r.shares; });
+    var e = sum(c, function(r) { return r.likes + r.shares; });
 
     document.querySelector('.kpi[data-k="views"] .val').textContent = fmt(v);
     document.querySelector('.kpi[data-k="hours"] .val').textContent = fmt1(m / 60) + " h";
